@@ -3,4 +3,4 @@ project(epoll_demo)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(lru_demo main.cpp LRUCache.cpp)
+add_executable(lru_demo main.cpp)

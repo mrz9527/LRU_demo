@@ -3,17 +3,26 @@
 
 #include "LRUCache.h"
 
-int main() {
-    LRUCache cache(2);
-    cache.put(1, 1); // 缓存是 {1=1}
-    cache.put(2, 2); // 缓存是 {1=1, 2=2}
-    cache.get(1);    // 返回 1
-    cache.put(3, 3); // 该操作会使得关键字 2 作废，缓存是 {1=1, 3=3}
-    cache.get(2);    // 返回 -1 (未找到)
-    cache.put(4, 4); // 该操作会使得关键字 1 作废，缓存是 {4=4, 3=3}
-    cache.get(1);    // 返回 -1 (未找到)
-    cache.get(3);    // 返回 3
-    cache.get(4);    // 返回 4
-
+int main()
+{
+    LRUCache<int, int> cache(5);
+    cache.Put(1, 1); // 缓存是 {1=1}
+    cache.Traverse(PrintLRUNode);
+    cache.Put(2, 2); // 缓存是 {1=1, 2=2}
+    cache.Traverse(PrintLRUNode);
+    cache.Get(1);    // 返回 1
+    cache.Traverse(PrintLRUNode);
+    cache.Put(3, 3); // 该操作会使得关键字 2 作废，缓存是 {1=1, 3=3}
+    cache.Traverse(PrintLRUNode);
+    cache.Get(2);    // 返回 -1 (未找到)
+    cache.Traverse(PrintLRUNode);
+    cache.Put(4, 4); // 该操作会使得关键字 1 作废，缓存是 {4=4, 3=3}
+    cache.Traverse(PrintLRUNode);
+    cache.Get(1);    // 返回 -1 (未找到)
+    cache.Traverse(PrintLRUNode);
+    cache.Put(7, 5); // 缓存是 {1=1}
+    cache.Traverse(PrintLRUNode);
+    cache.Put(9, 5); // 缓存是 {1=1}
+    cache.Traverse(PrintLRUNode);
     return 0;
 }

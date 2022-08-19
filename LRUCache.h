@@ -5,145 +5,175 @@
 #define EPOLL_DEMO_LRU_H
 
 #include <unordered_map>
+#include <numeric>
+#include "iostream"
 
 template<typename K, typename V>
 struct Node {
     K key = K();
     V value = V();
+    Node* next = nullptr;
+    Node* prev = nullptr;
 
-    Node<K, V>* next = nullptr;
-    Node<K, V>* pre = nullptr;
+    Node(K k, V v) : key(k), value(v), next(nullptr), prev(nullptr)
+    {};
 
-    Node(K k= K(), V v = V()): key(k), value(v) {};
+    Node() = default;
 };
 
+#define LRU_DEFAULT_CAPACITY 100
+
+template<typename K, typename V>
 class LRUCache {
-    using IINode = Node<int, int>;
-    using PIINode = IINode*;
-    using PIINodeHashMap = std::unordered_map<int, PIINode>;
+    using InnerNode = Node<K, V>;
+    using InnerHash = std::unordered_map<K, InnerNode*>;
+
 private:
-    int capacity_;
-    int size_;
-    PIINode head_;
-    PIINode tail_;
-    PIINodeHashMap node_map_;
+    int m_size = 0;
+    int m_capacity = LRU_DEFAULT_CAPACITY;
+    InnerNode* m_head = nullptr; // 用于在开头位置插入元素
+    InnerNode* m_tail = nullptr; // 用于在结尾位置删除元素
+    InnerHash m_nodeHash; // 用于存放节点信息
+
 public:
-    LRUCache(int capacity) : capacity_(capacity), size_(0), head_(new IINode),
-                             tail_(new IINode)
+    LRUCache(int capacity)
     {
-        head_->next = tail_;
-        tail_->pre = head_;
+        m_capacity = (capacity <= 0) ? LRU_DEFAULT_CAPACITY : capacity;
+        m_size = 0;
+
+        m_head = new InnerNode;
+        m_tail = new InnerNode;
+
+        m_head->next = m_tail;
+        m_tail->prev = m_head;
     }
 
-    ~LRUCache() {
+    ~LRUCache()
+    {
+        InnerNode* node = m_head;
+        InnerNode* next = nullptr;
 
+        while (node != nullptr) {
+            next = node->next;
+            delete(node);
+            node = nullptr;
+            node = next;
+        }
     }
 
-    int get(int key) {
-        auto flag = hashmap_find(key);
-        if(!flag) return -1;
+    int Get(K key)
+    {
+        auto iter = m_nodeHash.find(key);
+        if (iter == m_nodeHash.end()) {
+            return INTMAX_MIN;
+        }
 
-        PIINode node = hashmap_get(key);
-        list_move_to_front(node);
+        InnerNode* node = iter->second;
+
+        // 移动node到list最前面
+        MoveNodeToFront(node);
+
         return node->value;
     }
 
-    void put(int key, int value) {
-        auto flag = hashmap_find(key);
-        if(!flag) {
-            // 未找到
-            if(is_full()) {
-                list_popback();
-                hashmap_del(key);
-            }
-            PIINode node = list_pushfront(key, value);
-            hashmap_push(node);
-        } else {
-            // 找到
-            PIINode node = hashmap_get(key);
+    void Put(K key, V value)
+    {
+        InnerNode* node = nullptr;
+        auto iter = m_nodeHash.find(key);
+        if (iter != m_nodeHash.end()) {
+            node = iter->second;
+            // 更新值
             node->value = value;
-            list_move_to_front(node);
+
+            // 移动node到list最前面
+            MoveNodeToFront(node);
+        } else {
+            if (IsFull() == true) {
+                // list 删除最后一个元素，hash删除对应节点, 更新size
+                PopBack();
+            }
+
+            node = new InnerNode(key, value);
+
+            // 插入新的元素，hash添加新的节点， 更新size
+            PushFront(node);
+        }
+    }
+
+    void Traverse(void(* callback)(InnerNode*))
+    {
+        std::cout << "-------------" << std::endl;
+        InnerNode* node = m_head->next;
+        while (node != m_tail) {
+            callback(node);
+            node = node->next;
         }
     }
 
 private:
-    int get_size() const {
-        return size_;
+    bool IsFull()
+    {
+        return m_size >= m_capacity;
     }
 
-    bool is_full() {
-        return size_ == capacity_;
-    };
-
-    bool hashmap_find(int key) {
-        return node_map_.count(key) > 0;
-    };
-
-    // 哈希表和双链表都要删除
-    void hashmap_del(int key) {
-        node_map_.erase(key);
-    }
-
-    PIINode hashmap_get(int key) {
-        return node_map_[key];
-    }
-
-    void hashmap_push(PIINode node) {
-        node_map_.emplace(node->key, node);
-    }
-
-    // 删除链表尾元素
-    void list_popback() {
-        if(get_size() == 0) return;
-
-        // 待删除节点
-        PIINode node = tail_->pre;
-
-        node->pre->next = tail_;
-        tail_->pre = node->pre;
-
-        delete node;
-
-        --size_;
-    };
-
-    // 节点存在时，移动到头部
-    void list_move_to_front(PIINode node) {
-        if(node == nullptr) return;
-        if(node == head_->next) return; // 第一个位置移动到第一个位置
-
-        //从当前位置摘除
-        PIINode pre = node->pre;
-        PIINode next = node->next;
-
-        pre->next = next;
-        next->pre = pre;
-
-        // 放入头部位置
-        head_->next->pre = node;
-        node->next = head_->next;
-
-        head_->next = node;
-        node->pre = head_;
-    };
-
-    // 有新的数据时，在头部插入
-    PIINode list_pushfront(int key, int value) {
-        PIINode node = new(std::nothrow) IINode(key, value);
-        if(node) {
-            head_->next->pre = node;
-            node->next = head_->next;
-
-            head_->next = node;
-            node->pre = head_;
-
-            ++size_;
-
-            return node;
+    void MoveNodeToFront(InnerNode* node)
+    {
+        if (node == m_head->next) { // 本身就是第一个节点，不需要移动
+            return;
         }
-        return nullptr;
+
+        // 将node从list链表中指定位置去除
+        node->prev->next = node->next;
+        node->next->prev = node->prev;
+
+        // 将node放入首位
+        m_head->next->prev = node;
+        node->next = m_head->next;
+
+        m_head->next = node;
+        node->prev = m_head;
+    }
+
+    void PopBack()
+    {
+        // 找到最后节点
+        InnerNode* lastNode = m_tail->prev;
+        K key = lastNode->key;
+
+        // list删除最后节点
+        lastNode->prev->next = m_tail;
+        m_tail->prev = lastNode->prev;
+
+        delete lastNode;
+        lastNode = nullptr;
+
+        // hash删除该节点
+        m_nodeHash.erase(key);
+
+        // 更新元素个数
+        --m_size;
+    }
+
+    void PushFront(InnerNode* node)
+    {
+        // 将node放入首位
+        m_head->next->prev = node;
+        node->next = m_head->next;
+
+        m_head->next = node;
+        node->prev = m_head;
+
+        // hash增加该节点
+        m_nodeHash[node->key] = node;
+
+        ++m_size;
     }
 };
+
+void PrintLRUNode(Node<int, int>* node)
+{
+    std::cout << node->key << " : " << node->value << std::endl;
+}
 
 #endif //EPOLL_DEMO_LRU_H
 
